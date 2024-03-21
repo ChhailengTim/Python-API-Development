@@ -3,6 +3,9 @@ from fastapi import FastAPI, Response, status, HTTPException
 from fastapi.params import Body
 from pydantic import BaseModel
 from random import randrange
+import psycopg2
+from psycopg2.extras import RealDictCursor
+import time
 
 app = FastAPI()
 
@@ -12,6 +15,19 @@ class Post(BaseModel):
     content: str
     published: bool = True
     rating: Optional[int] = None
+
+
+while True:
+    try:
+        conn = psycopg2.connect(host='localhost', database='fastapi',
+                                user='postgres', password='1999', cursor_factory=RealDictCursor)
+        cursor = conn.cursor()
+        print("Database was connected successfully!")
+        break
+    except Exception as error:
+        print("Connecting to database faild!")
+        print("Error: ", error)
+        time.sleep(2)
 
 
 my_posts = [{"title": "title of post 1", "content": "content of post 1", "id": 1}, {
@@ -30,22 +46,25 @@ def find_index_post(id):
             return i
 
 
-@app.get("/posts")
+@app.get("/")
 async def root():
     return {"date": my_posts}
 
 
-@app.get("/post")
+@app.get("/posts")
 def get_post():
-    return {"data": "This my code for data"}
+    cursor.execute(""" SELECT * FROM posts """)
+    posts = cursor.fetchall()
+    return {"data": posts}
 
 
 @app.post("/posts", status_code=status.HTTP_201_CREATED)
 def create_posts(post: Post):
-    post_dict = post.dict()
-    post_dict["id"] = randrange(0, 1000)
-    my_posts.append(post_dict)
-    return {"date": post_dict}
+    cursor.execute("""INSERT INTO posts (title, content, published) VALUES(%s,%s,%s) RETURNING * """, (
+                   post.title, post.content, post.published))
+    new_post = cursor.fetchone()
+    conn.commit()
+    return {"date": new_post}
 
 
 @app.get("/posts/latest")
@@ -56,7 +75,8 @@ def get_latest_post():
 
 @app.get("/posts/{id}")
 def get_post(id: int, response: Response):
-    post = find_post(id)
+    cursor.execute("""SELECT * FROM posts WHERE id =  %s""", (str(id),))
+    post = cursor.fetchone()
     if not post:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"post with id {id} was not found")
