@@ -33,6 +33,14 @@ class Post(PostBase):
         from_attributes = True
 
 
+class PostOut(BaseModel):
+    Post: Post
+    votes: int
+
+    class Config:
+        orm_mode = True
+
+
 class UserCreate(BaseModel):
     email: EmailStr
     password: str
@@ -54,4 +62,4 @@ class TokenData(BaseModel):
 
 class Vote(BaseModel):
     post_id: int
-    dir: conint(le=1) # type: ignore
+    dir: conint(le=1)  # type: ignore
